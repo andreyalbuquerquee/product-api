@@ -5,11 +5,12 @@ import java.util.Optional;
 
 import br.com.product.productapi.shared.ProductDto;
 import br.com.product.productapi.shared.ProductStockDto;
+import br.com.product.productapi.utils.ReturnServiceProps;
 
 public interface ProductsService {
     List<ProductDto> getAll();
     Optional<ProductStockDto> getById(String id);
     ProductDto create(ProductDto newProductDto);
-    Object[] updateById(String id, ProductDto updateProductDto);
+    ReturnServiceProps updateById(String id, ProductDto updateProductDto);
     boolean deleteById(String id);
 }
