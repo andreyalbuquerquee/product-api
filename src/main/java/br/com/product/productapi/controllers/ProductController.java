@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.product.productapi.services.ProductsService;
 import br.com.product.productapi.shared.ProductDto;
 import br.com.product.productapi.shared.ProductStockDto;
+import br.com.product.productapi.utils.ReturnServiceProps;
 import jakarta.validation.Valid;
 
 @RestController
@@ -29,64 +30,64 @@ public class ProductController {
     
     @GetMapping
     private ResponseEntity<List<ProductDto>> getAllProducts() {
-        return new ResponseEntity<>(service.getAll(), HttpStatus.OK);
+        return ResponseEntity.status(HttpStatus.OK).body(service.getAll());
     }
 
     @GetMapping("/{id}")
-    private ResponseEntity<ProductStockDto> getProductById(@PathVariable String id) {
-        Optional<ProductStockDto> product = service.getById(id);
+    private ResponseEntity<Object> getProductById(@PathVariable String id) {
+        Optional<ProductStockDto> productStockDtoOptional = service.getById(id);
 
-        if (product.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND); 
+        if (!productStockDtoOptional.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Produto não encontrado."); 
         }
 
-        return new ResponseEntity<>(product.get(), HttpStatus.OK);
+        return ResponseEntity.status(HttpStatus.OK).body(productStockDtoOptional.get());
     }
 
     @PostMapping
-    private ResponseEntity<?> createProduct(@RequestBody @Valid ProductDto product) {
+    private ResponseEntity<Object> createProduct(@RequestBody @Valid ProductDto product) {
         ProductDto newProduct = service.create(product);
         
         if (newProduct == null) {          
-            return new ResponseEntity<String>("Estoque insuficiente para armazenar o produto!" ,HttpStatus.CONFLICT);
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Espaço de estoque insuficiente para armazenar o produto!");
         }
-        
-        return new ResponseEntity<ProductDto>(newProduct, HttpStatus.CREATED);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(newProduct);
     }
 
     @PutMapping("/{id}")
-    private ResponseEntity<?> updateProduct(@PathVariable String id, @RequestBody @Valid ProductDto product) {
-        Object[] updateByIdProps = service.updateById(id, product);
-        Optional<ProductStockDto> productExist = service.getById(id);
-
-        if (productExist.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    private ResponseEntity<Object> updateProduct(@PathVariable String id, @RequestBody @Valid ProductDto product) {
+        Optional<ProductStockDto> productStockDtoOptional = service.getById(id);
+        ReturnServiceProps updateByIdProps = service.updateById(id, product);
+        
+        if (!productStockDtoOptional.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Produto não encontrado.");
         }
-    
-        if (updateByIdProps[0] == null) {
-            return new ResponseEntity<String>("Id de estoque não encontrado!", HttpStatus.NOT_FOUND);
+        if(!updateByIdProps.isStockServiceOk()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Operação não pode ser concluída, serviço de estoque indisponível.");
         }
-
-        if (updateByIdProps[1].equals(false)) {
-            return new ResponseEntity<String>("Espaço de estoque insuficiente para armazenar o produto!", HttpStatus.CONFLICT);
+        if (updateByIdProps.getStockExists() == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Id de estoque não encontrado.");
+        }
+        if (!updateByIdProps.isHasFreeSpace()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Espaço de estoque insuficiente para armazenar o produto!");
         }
         
-        return new ResponseEntity<>(updateByIdProps[2], HttpStatus.OK);
+        return ResponseEntity.status(HttpStatus.OK).body(updateByIdProps.getProductDto());
     }
     
     @DeleteMapping("/{id}")
-    private ResponseEntity<?> deleteProductById(@PathVariable String id) {
-        Optional<ProductStockDto> product = service.getById(id);
+    private ResponseEntity<Object> deleteProductById(@PathVariable String id) {
+        Optional<ProductStockDto> productStockDtoOptional = service.getById(id);
 
-        if (product.isEmpty()) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        if (!productStockDtoOptional.isPresent()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Produto não encontrado.");
         }
-        
-        if (service.deleteById(id) == false) {
-            return new ResponseEntity<String>("Operação não pode ser concluída!", HttpStatus.SERVICE_UNAVAILABLE);
+        if (!service.deleteById(id)) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Operação não pode ser concluída, serviço de estoque indisponível.");
         }
 
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(null);
     }
 
     
