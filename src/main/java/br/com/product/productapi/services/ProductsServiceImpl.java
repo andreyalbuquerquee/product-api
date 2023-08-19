@@ -12,6 +12,7 @@ import br.com.product.productapi.models.Stock;
 import br.com.product.productapi.repository.ProductsRepository;
 import br.com.product.productapi.shared.ProductDto;
 import br.com.product.productapi.shared.ProductStockDto;
+import br.com.product.productapi.utils.ReturnServiceProps;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 
 @Service
@@ -24,7 +25,7 @@ public class ProductsServiceImpl implements ProductsService {
 
     @Override
     public List<ProductDto> getAll() {
-        return repository.findAll().stream().map(p -> new ProductDto(p.getId(), p.getName(), p.getValue(), p.getUnity(), p.getStockId())).toList();
+        return repository.findAll().stream().map(product -> createProductDto(product)).toList();
     }
 
     @CircuitBreaker(name = "getStock", fallbackMethod = "fallbackGetById")
@@ -35,7 +36,7 @@ public class ProductsServiceImpl implements ProductsService {
         if (product.isPresent()) {
             Stock stock = stocksClient.getStock(product.get().getStockId());
         
-            ProductStockDto productStock = this.productStockDto(product, stock);
+            ProductStockDto productStock = this.createProductStockDto(product, stock);
 
             return Optional.of(productStock);
         } else {
@@ -59,46 +60,47 @@ public class ProductsServiceImpl implements ProductsService {
 
         stocksClient.updateStock(stock.getId(), stock);
 
-        return this.productDto(product);
+        return this.createProductDto(product);
         
     }
 
     @CircuitBreaker(name = "getStock", fallbackMethod = "fallbackUpdateById")
     @Override
-    public Object[] updateById(String id, ProductDto updateProductDto) {
-        Object[] updateByIdProps = new Object[3];
+    public ReturnServiceProps updateById(String id, ProductDto updateProductDto) {
+        ReturnServiceProps updateByIdProps = new ReturnServiceProps();
         Product product = repository.findById(id).orElse(null);
         
         if (product != null) {
             Product productUpdated = new Product(updateProductDto);
             productUpdated.setId(id);
             Stock stock = stocksClient.getStock(updateProductDto.stockId());
+            updateByIdProps.setStockServiceOk(true);
             
             if (stock == null) {
-                updateByIdProps[0] = stock;
+                updateByIdProps.setStockExists(stock);
                 return updateByIdProps;
             }
 
             boolean isUnityHigher = productUpdated.getUnity() > product.getUnity();
             boolean hasFreeSpace = (updateProductDto.unity() - product.getUnity()) <= stock.getFreeSpace();
-            updateByIdProps[0] = stock;
-            updateByIdProps[1] = hasFreeSpace; 
+            updateByIdProps.setStockExists(stock);
+            updateByIdProps.setHasFreeSpace(hasFreeSpace);
             
-            if (isUnityHigher == true && hasFreeSpace == true) {
+            if (isUnityHigher && hasFreeSpace) {
                 stock.setUsedSpace(stock.getUsedSpace() + (updateProductDto.unity() - product.getUnity()));
                 stocksClient.updateStock(stock.getId(), stock);
                 repository.save(productUpdated);
             
-                ProductDto productUpdatedDto =  this.productDto(productUpdated);
-                updateByIdProps[2] = (productUpdatedDto);
+                ProductDto productUpdatedDto = this.createProductDto(productUpdated);
+                updateByIdProps.setProductDto(productUpdatedDto);
             }
 
-            if (isUnityHigher == false) {
+            if (!isUnityHigher) {
                 stock.setUsedSpace(stock.getUsedSpace() - (product.getUnity() - updateProductDto.unity()));
                 stocksClient.updateStock(stock.getId(), stock);
                 repository.save(productUpdated);
-                ProductDto productUpdatedDto =  this.productDto(productUpdated);
-                updateByIdProps[2] = (productUpdatedDto);
+                ProductDto productUpdatedDto = this.createProductDto(productUpdated);
+                updateByIdProps.setProductDto(productUpdatedDto);
             }
         }  
         return updateByIdProps;
@@ -109,44 +111,58 @@ public class ProductsServiceImpl implements ProductsService {
     @Override
     public boolean deleteById(String id) {
         Optional<ProductStockDto> productDto = this.getById(id);
+        Stock stock = new Stock(productDto.get().stock());
         
-        Stock stock = new Stock(productDto.get().stock().getId(), productDto.get().stock().getTotalSpace(), productDto.get().stock().getUsedSpace());
-      
         stock.setUsedSpace(stock.getUsedSpace() - productDto.get().unity());
-
-        stocksClient.updateStock(productDto.get().stock().getId(), stock);
-        
+        stocksClient.updateStock(productDto.get().stock().getId(), stock);       
         repository.deleteById(id);
 
         return true;
     }
 
-    
-    private ProductDto productDto(Product product) {
-        return new ProductDto(product.getId(),
+    private ProductDto createProductDto(Product product) {
+        return new ProductDto(
+        product.getId(),
         product.getName(),
         product.getValue(),
         product.getUnity(),
-        product.getStockId());
+        product.getStockId()
+        );
     }
 
-    private ProductStockDto productStockDto(Optional<Product> productStock, Stock stock) {
-        return new ProductStockDto(productStock.get().getId(), productStock.get().getName(), productStock.get().getValue(), productStock.get().getUnity(), stock);
+    private ProductStockDto createProductStockDto(Optional<Product> productStock, Stock stock) {
+        return new ProductStockDto(
+        productStock.get().getId(), 
+        productStock.get().getName(), 
+        productStock.get().getValue(), 
+        productStock.get().getUnity(), 
+        stock
+        );
     }
     
     public Optional<ProductStockDto> fallbackGetById(String id, Exception e) {
         Optional<Product> product = repository.findById(id);
 
         if (product.isPresent()) {
-            ProductStockDto productStock = this.productStockDto(product, null);
+            ProductStockDto productStock = this.createProductStockDto(product, null);
             return Optional.of(productStock);
         }
         
         return Optional.empty();     
     } 
     
-    public Object[] fallbackUpdateById(String id, ProductDto updateProductDto, Exception e) {
-        Object[] updateByIdProps = new Object[3];
+    public ReturnServiceProps fallbackUpdateById(String id, ProductDto updateProductDto, Exception e) {;
+        ReturnServiceProps updateByIdProps = new ReturnServiceProps();
+        
+        if (e.getLocalizedMessage() != null && e.getLocalizedMessage().contains("404")) {
+            updateByIdProps.setStockServiceOk(true);
+            updateByIdProps.setStockExists(null);
+
+            return updateByIdProps;
+        }
+        updateByIdProps.setStockServiceOk(false);
+
+
         return updateByIdProps;
     }  
  
