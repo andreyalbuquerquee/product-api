@@ -5,10 +5,12 @@ public class Stock {
     private int totalSpace;
     private int usedSpace;
 
-    public Stock(String id, int totalSpace, int usedSpace) {
-        this.id = id;
-        this.totalSpace = totalSpace;
-        this.usedSpace = usedSpace;
+    public Stock() {}
+    
+    public Stock(Stock stock) {
+        this.id = stock.id;
+        this.totalSpace = stock.totalSpace;
+        this.usedSpace = stock.usedSpace;
     }
 
     public int getFreeSpace() {
