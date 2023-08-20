@@ -10,7 +10,7 @@ import br.com.product.productapi.utils.ReturnServiceProps;
 public interface ProductsService {
     List<ProductDto> getAll();
     Optional<ProductStockDto> getById(String id);
-    ProductDto create(ProductDto newProductDto);
+    ReturnServiceProps create(ProductDto newProductDto);
     ReturnServiceProps updateById(String id, ProductDto updateProductDto);
     boolean deleteById(String id);
 }

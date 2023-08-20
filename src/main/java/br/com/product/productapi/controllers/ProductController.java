@@ -46,13 +46,19 @@ public class ProductController {
 
     @PostMapping
     private ResponseEntity<Object> createProduct(@RequestBody @Valid ProductDto product) {
-        ProductDto newProduct = service.create(product);
+        ReturnServiceProps createProps = service.create(product);
         
-        if (newProduct == null) {          
+        if(!createProps.isStockServiceOk()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Operação não pode ser concluída, serviço de estoque indisponível.");
+        }
+        if (createProps.getStockExists() == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Id de estoque não encontrado.");
+        }
+        if (!createProps.isHasFreeSpace()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Espaço de estoque insuficiente para armazenar o produto!");
         }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(newProduct);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createProps.getProductDto());
     }
 
     @PutMapping("/{id}")

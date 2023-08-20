@@ -44,23 +44,33 @@ public class ProductsServiceImpl implements ProductsService {
         }
     }    
 
-    @CircuitBreaker(name = "getStock", fallbackMethod = "fallbackGetById")
+    @CircuitBreaker(name = "getStock", fallbackMethod = "fallbackCreate")
     @Override
-    public ProductDto create(ProductDto newProductDto) {
+    public ReturnServiceProps create(ProductDto newProductDto) {
+        ReturnServiceProps createProps = new ReturnServiceProps();
         Stock stock = stocksClient.getStock(newProductDto.stockId());
-        
-        if (stock.getFreeSpace() < newProductDto.unity()) {
-            return null;
+        createProps.setStockServiceOk(true);
+
+        if (stock == null) {
+            createProps.setStockExists(stock);
+            return createProps;
         }
+        createProps.setStockExists(stock);
+        if (stock.getFreeSpace() < newProductDto.unity()) {
+            createProps.setHasFreeSpace(false);
+            return createProps;
+        }
+        createProps.setHasFreeSpace(true);
         
         Product product = new Product(newProductDto);
         repository.save(product);
 
         stock.setUsedSpace(stock.getUsedSpace() + product.getUnity());
-
         stocksClient.updateStock(stock.getId(), stock);
 
-        return this.createProductDto(product);
+        createProps.setProductDto(this.createProductDto(product));
+
+        return createProps;
         
     }
 
@@ -151,6 +161,20 @@ public class ProductsServiceImpl implements ProductsService {
         return Optional.empty();     
     } 
     
+    public ReturnServiceProps fallbackCreate(ProductDto newProductDto, Exception e) {
+        ReturnServiceProps createProps = new ReturnServiceProps();
+        
+        if (e.getLocalizedMessage() != null && e.getLocalizedMessage().contains("404")) {
+            createProps.setStockServiceOk(true);
+            createProps.setStockExists(null);
+
+            return createProps;
+        }
+        createProps.setStockServiceOk(false);
+
+        return createProps;
+    }
+    
     public ReturnServiceProps fallbackUpdateById(String id, ProductDto updateProductDto, Exception e) {;
         ReturnServiceProps updateByIdProps = new ReturnServiceProps();
         
@@ -161,7 +185,6 @@ public class ProductsServiceImpl implements ProductsService {
             return updateByIdProps;
         }
         updateByIdProps.setStockServiceOk(false);
-
 
         return updateByIdProps;
     }  
