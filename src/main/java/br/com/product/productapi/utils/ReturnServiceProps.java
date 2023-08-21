@@ -6,14 +6,6 @@ import br.com.product.productapi.shared.ProductDto;
 public class ReturnServiceProps {
     private boolean isStockServiceOk;
     private Stock stock;
-    private Exception exception;
-    public Exception getException() {
-        return exception;
-    }
-
-    public void setException(Exception exception) {
-        this.exception = exception;
-    }
     private boolean hasFreeSpace;
     private ProductDto productDto;
     
