@@ -117,7 +117,7 @@ public class ProductsServiceImpl implements ProductsService {
     
     }
 
-    @CircuitBreaker(name = "updateStock", fallbackMethod = "fallbackBlockOperation")
+    @CircuitBreaker(name = "updateStock", fallbackMethod = "fallbackDelete")
     @Override
     public boolean deleteById(String id) {
         Optional<ProductStockDto> productDto = this.getById(id);
@@ -189,7 +189,7 @@ public class ProductsServiceImpl implements ProductsService {
         return updateByIdProps;
     }  
  
-    public boolean fallbackBlockOperation(String id, Exception e) {
+    public boolean fallbackDelete(String id, Exception e) {
         return false;
     }
     
