@@ -47,7 +47,6 @@ public class Product {
         this.unity = unity;
     }
 
-
     public Product() {}
 
     public Product(ProductDto dto){
